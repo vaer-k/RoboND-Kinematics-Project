@@ -10,6 +10,7 @@
 # Author: Harsh Pandya
 
 # import modules
+import numpy as np
 import rospy
 import tf
 from kuka_arm.srv import *
@@ -29,7 +30,7 @@ def handle_calculate_IK(req):
         ### Your FK code here
         # Create symbols
 	d1, d2, d3, d4, d5, d6, d7 = symbols('d1:8') # link offset
-	a0, a1, a2, a3, a4, a6, a6 = symbols('a0:7') # link length
+	a0, a1, a2, a3, a4, a5, a6 = symbols('a0:7') # link length
 	alpha0, alpha1, alpha2, alpha3, alpha4, alpha5, alpha6 = symbols('alpha0:7') # twist angle
  	q1, q2, q3, q4, q5, q6, q7 = symbols('q1:8') # joint angles
 
@@ -100,15 +101,34 @@ def handle_calculate_IK(req):
 	    rot_error = rot_z.subs(y, radians(180)) * rot_y.subs(p, radians(-90))
 
   	    rot_ee = rot_ee * rot_error
-	    rot_ee = rot_ee.subs({'r': roll, 'p', pitch, 'y': yaw})
+	    rot_ee = rot_ee.subs({'r': roll, 'p': pitch, 'y': yaw})
 
 	    ee = Matrix([ [px], [py], [pz] ])
 	    wc = ee - 0.303 * rot_ee[:, 2]
 
 	    # Calculate joint angles using Geometric IK method
-	    #
-	    #
-            ###
+            theta1 = atan2(wc[1], wc[0])
+
+            # SSS triangle for theta2 and theta3
+            side_a = 1.501
+            side_b = sqrt(pow((sqrt(np.square(wc[0]) + np.square(wc[1])) - 0.35), 2) + pow((wc[2] - 0.75), 2))
+            side_c = 1.25
+
+            angle_a = acos((np.square(side_b) + np.square(side_c) - np.square(side_a)) / (2 * side_b * side_c))
+            angle_b = acos((np.square(side_a) + np.square(side_c) - np.square(side_b)) / (2 * side_a * side_c))
+            angle_c = acos((np.square(side_a) + np.square(side_b) - np.square(side_c)) / (2 * side_a * side_b))
+
+            theta2 = pi / 2 - angle_a - atan2(wc[2] - 0.75, sqrt(np.square(wc[0]) + np.square(wc[1])) - 0.35)
+            theta3 = pi /2 - (angle_b + 0.036) # 0.036 accounts for sag in link4 of -0.054m
+
+            R0_3 = T0_1[0:3,0:3] * T1_2[0:3,0:3] * T2_3[0:3,0:3]
+            R0_3 = R0_3.evalf(subs={q1: theta1, q2: theta2, q3: theta3})
+            R3_6 = R0_3.inv("LU") * rot_ee
+
+            # Euler angles from rotation matrix
+            theta4 = atan2(R3_6[2,2], -R3_6[0,2])
+            theta5 = atan2(sqrt(R3_6[0,2] * R3_6[0,2] + np.square(R3_6[2,2])), R3_6[1,2])
+            theta6 = atan2(-R3_6[1,1], R3_6[1,0])
 		
             # Populate response for the IK request
             # In the next line replace theta1,theta2...,theta6 by your joint angle variables

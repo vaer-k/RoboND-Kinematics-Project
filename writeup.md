@@ -2,11 +2,12 @@
 ---
 
 
-## [Rubric](https://review.udacity.com/#!/rubrics/972/view) Points
-### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
+### Here I will consider the [rubric points](https://review.udacity.com/#!/rubrics/972/view) individually and describe how I addressed each point in my implementation.  
 
 ---
 ### Writeup / README
+
+[inverse position]: ./misc_images/misc3.png
 
 ### Kinematic Analysis
 #### 1. Using the DH parameter table you derived earlier, create individual transformation matrices about each joint. In addition, also generate a generalized homogeneous transform between base_link and gripper_link using only end-effector(gripper) pose.
@@ -23,7 +24,7 @@ Links | alpha(i-1) | a(i-1) | d(i-1) | theta(i)
 5->6 | - pi/2 | 0 | 0 | q6
 6->EE | 0 | 0 | 0.303 | 0
 
-![kinematic configuration](https://imgur.com/a/vbh8Q)
+![kinematic configuration](https://imgur.com/sZQa2AO.png)
 
 All values are derived from the URDF file that describes the physical measurements of the robotic arm. The link offset from X<sub>1</sub> to X<sub>0</sub> is 0.75m, which is the sum of 0.42 and 0.33, the offsets of joint2 and joint1 from their parents along the Z-axis of the world frame. The alpha values represent the twist angle between Z axes, and they are derived by noting the relative orientation of the axes as I placed them. In all cases, they are 90 degrees apart. Another value of note here is the q2 symbol for theta 2. This value must be offset by 90 degrees, since its zero configuration has the X axis of its frame already 90 degrees off-axis from the previous frame before it has even moved. Other parameters, such as a2, the link length from Z<sub>1</sub> to Z<sub>2</sub>, were pulled straight from the URDF configuration file where they are explicitly specified.  
 
@@ -96,19 +97,25 @@ Matrix([
 
 ```
 
-And here's where you can draw out and show your math for the derivation of your theta angles. 
+As instructed, I broke the inverse problem into two smaller problems, one an inverse position problem for the wrist center, and one an inverse orientation problem for the wrist itself.
 
-![alt text][image2]
+I began by finding the wrist center. The wrist center was provided in the request, but it needed to be rotated to compensate for discrepancy between the DH parameters and the specifications in the URDF file. Two extrinsic rotations about the z and y axes were performed, and 0.303 meters were subtracted to account for the distrance from the gripper link to joint6 and the distance from joint6 to joint5, which is the wrist center.
+
+![wrist center compensation](https://imgur.com/CC2FP29.png)
+
+Next, I needed to compute the theta angles necessary to position the wrist center, which means angles 1-3. The first theta value is trivial, and can be found by using the arctan function on the x and y values of the wrist center.
+
+Next, I followed the instructions in the walkthrough video to compute the sides and angles of a triangle that is formed between the wrist center and the DH frame corresponding to joint 2. The sides and angles are partly given by the URDF file, and partly derived using the law of cosines from trigonometry, which defines an equation that relates the sides of a triangle to the cosine of one of its angles. Then I deduced theta<sub>2</sub> and theta<sub>3</sub> using known angles from this triangle.  
+
+![inverse position computation][inverse position]
+
+Now, I had the wrist center position angles computed, but still required the angles defining its rotation. These were found by passing the newly discovered thetas 1-3 into the rotation matrix from frame 0 to 3. A rotation matrix from the base frame to the gripper was provided by gazebo. By multiplying the inverse of R<sub>0,3</sub> into the gripper rotation, we obtain the rotation matrix from frame 3 to 6, which will define the orientation of the gripper we are looking for.
 
 ### Project Implementation
 
 #### 3. Fill in the `IK_server.py` file with properly commented python code for calculating Inverse Kinematics based on previously performed Kinematic Analysis. Your code must guide the robot to successfully complete 8/10 pick and place cycles. Briefly discuss the code you implemented and your results. 
 
+This implementation follows the walkthrough video to compute inverse kinematics on the Kuka 210. I used sympy to perform symbolic matrix algebra to reduce computational overhead when possible. This code executes the task successfully, but it is rather slow. This code does not extract some repetitive processes that could have optimized for better performance. For example, transformation and rotation matrices could be saved to text files so that they don't need to be recomputed for every pass through the position trajectory of the arm. Using a library like numpy to squeeze out some more efficiency in matrix algebra might also help to speed things up. 
 
-Here I'll talk about the code, what techniques I used, what worked and why, where the implementation might fail and how I might improve it if I were going to pursue this project further.  
-
-
-And just for fun, another example image:
-![alt text][image3]
 
 
